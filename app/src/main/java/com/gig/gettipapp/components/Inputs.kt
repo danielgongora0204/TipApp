@@ -8,11 +8,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AttachMoney
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction.Companion.Next
@@ -24,22 +23,25 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun InputCurrencyField(
     modifier: Modifier = Modifier,
-    valueState: MutableState<String>,
+    value: String,
     labelId: String,
     enabled: Boolean = true,
     singleLine: Boolean = true,
     keyboardOptions: KeyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = Next),
-    keyboardActions: KeyboardActions = KeyboardActions.Default
-)
-{
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    onValueChange: (String) -> Unit = {}
+) {
     OutlinedTextField(
         modifier = modifier.padding(bottom = 10.dp, start = 10.dp, end = 10.dp).fillMaxWidth(),
-        value = valueState.value,
-        onValueChange = { valueState.value = it },
+        value = value,
+        onValueChange = onValueChange,
         label = { Text(text = labelId) },
-        leadingIcon = { Icon(
-            imageVector = Icons.Rounded.AttachMoney,
-            contentDescription = "Money Icon") },
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Rounded.AttachMoney,
+                contentDescription = "Money Icon"
+            )
+        },
         singleLine = singleLine,
         textStyle = TextStyle(
             fontSize = 18.sp,
