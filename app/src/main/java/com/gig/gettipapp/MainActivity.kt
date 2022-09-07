@@ -31,8 +31,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.text.isDigitsOnly
 import com.gig.gettipapp.components.InputCurrencyField
 import com.gig.gettipapp.ui.theme.GetTipAppTheme
+import com.gig.gettipapp.util.calculateTotalAmount
+import com.gig.gettipapp.util.calculateTotalPerPerson
 import com.gig.gettipapp.util.calculateTotalTip
 import com.gig.gettipapp.widgets.RoundIconButton
 import kotlin.math.roundToInt
@@ -60,8 +63,56 @@ fun App(content: @Composable () -> Unit) {
     }
 }
 
+@ExperimentalComposeUiApi
 @Composable
-fun TopHeader(amount: Double = 0.0) {
+fun BillForm() {
+    val totalBill = rememberSaveable { mutableStateOf("") }
+    val validCurrency = rememberSaveable(totalBill.value) {
+        totalBill.value.trim().isNotEmpty() && totalBill.value.trim().isDigitsOnly()
+    }
+    val people = rememberSaveable { mutableStateOf(1) }
+    val sliderPosition = rememberSaveable {
+        mutableStateOf(0.10f)
+    }
+
+    Column(
+        modifier = Modifier.padding(horizontal = 10.dp, vertical = 20.dp)
+    ) {
+        TopHeader(
+            totalBillAmount = calculateTotalAmount(
+                totalBill = totalBill.value,
+                tipAmount = calculateTotalTip(totalBill.value, (sliderPosition.value * 100).roundToInt())
+            ),
+            totalPerPerson = calculateTotalPerPerson(
+                calculateTotalAmount(
+                    totalBill = totalBill.value,
+                    tipAmount = calculateTotalTip(totalBill.value, (sliderPosition.value * 100).roundToInt())
+                ),
+                people.value
+            )
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        FormInputs(
+            totalBill = totalBill,
+            validCurrency = validCurrency,
+            people = people.value,
+            sliderPosition = sliderPosition.value,
+            tipAmount = calculateTotalTip(totalBill.value, (sliderPosition.value * 100).roundToInt()),
+            onClickRemove = {
+                if (people.value > 1) people.value--
+            },
+            onClickAdd = {
+                if (people.value < 100) people.value++
+            },
+            onValueChangedSlider = {
+                sliderPosition.value = it
+            }
+        )
+    }
+}
+
+@Composable
+fun TopHeader(totalBillAmount: Double = 0.0, totalPerPerson: Double = 0.0) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -74,6 +125,19 @@ fun TopHeader(amount: Double = 0.0) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
+                text = "Total Bill",
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 20.sp
+            )
+            // Way to format text with two decimal points
+            Text(
+                text = "$${"%.2f".format(totalBillAmount)}",
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 30.sp
+            )
+            Text(
                 text = "Total Per Person",
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.ExtraBold,
@@ -81,7 +145,7 @@ fun TopHeader(amount: Double = 0.0) {
             )
             // Way to format text with two decimal points
             Text(
-                text = "$${"%.2f".format(amount)}",
+                text = "$${"%.2f".format(totalPerPerson)}",
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.ExtraBold,
                 fontSize = 30.sp
@@ -92,54 +156,13 @@ fun TopHeader(amount: Double = 0.0) {
 
 @ExperimentalComposeUiApi
 @Composable
-fun BillForm() {
-    val totalBill = rememberSaveable { mutableStateOf("") }
-    //Link a mutable state to the value of another mutable
-    val validCurrency = rememberSaveable(totalBill.value) {
-        totalBill.value.trim().isNotEmpty()
-    }
-    val people = rememberSaveable { mutableStateOf(1) }
-    val sliderPosition = rememberSaveable {
-        mutableStateOf(0f)
-    }
-    val tipAmount = rememberSaveable{ mutableStateOf(0.0) }
-    Column(modifier = Modifier.padding(10.dp)){
-        TopHeader()
-        Spacer(modifier = Modifier.height(10.dp))
-        FormInputs(
-            totalBill = totalBill,
-            validCurrency = validCurrency,
-            people = people,
-            sliderPosition = sliderPosition,
-            tipAmount = tipAmount,
-            onValueChangeInput = {
-                tipAmount.value = calculateTotalTip(it, (sliderPosition.value * 100).roundToInt())
-
-            },
-            onClickRemove = {
-                if(people.value > 1) people.value--
-            },
-            onClickAdd = {
-                if(people.value < 100) people.value++
-            },
-            onValueChangedSlider = {
-                sliderPosition.value = it
-                tipAmount.value = calculateTotalTip(totalBill.value, (it * 100).roundToInt())
-            }
-        )
-    }
-}
-
-@ExperimentalComposeUiApi
-@Composable
 fun FormInputs(
     modifier: Modifier = Modifier,
     totalBill: MutableState<String>,
     validCurrency: Boolean,
-    people: MutableState<Int>,
-    sliderPosition: MutableState<Float>,
-    tipAmount: MutableState<Double>,
-    onValueChangeInput: (String) -> Unit = {},
+    people: Int,
+    sliderPosition: Float,
+    tipAmount: Double,
     onClickAdd: () -> Unit = {},
     onClickRemove: () -> Unit = {},
     onValueChangedSlider: (Float) -> Unit = {}
@@ -152,84 +175,81 @@ fun FormInputs(
         border = BorderStroke(width = 1.dp, color = Color.LightGray)
     ) {
         val keyboardController = LocalSoftwareKeyboardController.current
-        Column (
+        Column(
             modifier = Modifier.padding(6.dp),
             verticalArrangement = Arrangement.Top,
-        ) Form@ {
+        ) Form@{
             InputCurrencyField(
                 valueState = totalBill,
                 labelId = "Enter Bill",
                 keyboardActions = KeyboardActions {
                     if (!validCurrency) return@KeyboardActions
-                    onValueChangeInput(totalBill.value.trim())
                     keyboardController?.hide()
                 }
             )
-            //if(validCurrency) {
-            Row(
-                modifier = Modifier.padding(10.dp),
-                horizontalArrangement = Arrangement.Start,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(text = "Split")
-                Spacer(modifier = Modifier.width(120.dp))
-                Row (
-                    modifier = Modifier.padding(horizontal = 3.dp),
-                    horizontalArrangement = Arrangement.End,
+            if (validCurrency) {
+                Row(
+                    modifier = Modifier.padding(10.dp),
+                    horizontalArrangement = Arrangement.Start,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    RoundIconButton(
-                        //  modifier = Modifier.size(40.dp),
-                        image = Icons.Rounded.Remove,
-                        onClick = onClickRemove
-                    )
+                    Text(text = "Split")
+                    Spacer(modifier = Modifier.width(120.dp))
+                    Row(
+                        modifier = Modifier.padding(horizontal = 3.dp),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RoundIconButton(
+                            //  modifier = Modifier.size(40.dp),
+                            image = Icons.Rounded.Remove,
+                            onClick = onClickRemove
+                        )
+                        Text(
+                            text = people.toString(),
+                            modifier = Modifier
+                                .align(Alignment.CenterVertically)
+                                .padding(start = 9.dp, end = 9.dp),
+                        )
+                        RoundIconButton(
+                            //  modifier = Modifier.size(40.dp),
+                            image = Icons.Rounded.Add,
+                            onClick = onClickAdd
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 0.dp), // .padding(10.dp),
+                    horizontalArrangement = Arrangement.Start,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
-                        text = people.value.toString(),
-                        modifier = Modifier
-                            .align(Alignment.CenterVertically)
-                            .padding(start = 9.dp, end = 9.dp),
+                        text = "Tip",
+                        modifier = Modifier.align(alignment = Alignment.CenterVertically)
                     )
-                    RoundIconButton(
-                        //  modifier = Modifier.size(40.dp),
-                        image = Icons.Rounded.Add,
-                        onClick = onClickAdd
+                    Spacer(modifier = Modifier.width(200.dp))
+                    Text(
+                        text = "$${"%.2f".format(tipAmount)}",
+                        modifier = Modifier.align(alignment = Alignment.CenterVertically)
                     )
                 }
+                Column(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 0.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(text = "${(sliderPosition * 100).roundToInt()}%")
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Slider(
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp),
+                        value = sliderPosition,
+                        onValueChange = onValueChangedSlider,
+                        onValueChangeFinished = {}
+                    )
+                }
+                return@Form
             }
-            Row(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 0.dp),//.padding(10.dp),
-                horizontalArrangement = Arrangement.Start,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Tip",
-                    modifier = Modifier.align(alignment = Alignment.CenterVertically)
-                )
-                Spacer(modifier = Modifier.width(200.dp))
-                Text(
-                    text = "$${"%.2f".format(tipAmount.value)}",
-                    modifier = Modifier.align(alignment = Alignment.CenterVertically)
-                )
-            }
-            Column (
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 0.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(text = "${(sliderPosition.value * 100).roundToInt()}%")
-                Spacer(modifier = Modifier.height(14.dp))
-                Slider(
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp),
-                    value = sliderPosition.value,
-                    onValueChange = onValueChangedSlider,
-                    onValueChangeFinished = {}
-                )
-            }
-            return@Form
-
-
-            //  }
-            //  Box(){}
+            Box() {}
         }
     }
 }
@@ -242,10 +262,3 @@ fun DefaultPreview() {
         BillForm()
     }
 }
-
-/*
-@Composable
-fun Test() {
-    Text(text = "Example Text")
-}
-*/
