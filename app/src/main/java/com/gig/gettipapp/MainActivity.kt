@@ -4,7 +4,16 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,7 +26,6 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -46,7 +54,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             App {
-                BillForm()
+                MainContent()
             }
         }
     }
@@ -63,9 +71,10 @@ fun App(content: @Composable () -> Unit) {
     }
 }
 
+//State Hoisting
 @ExperimentalComposeUiApi
 @Composable
-fun BillForm() {
+fun MainContent() {
     val totalBill = rememberSaveable { mutableStateOf("") }
     val validCurrency = rememberSaveable(totalBill.value) {
         totalBill.value.trim().isNotEmpty() && totalBill.value.trim().isDigitsOnly()
@@ -75,42 +84,78 @@ fun BillForm() {
         mutableStateOf(0.10f)
     }
 
-    Column(
-        modifier = Modifier.padding(horizontal = 10.dp, vertical = 20.dp)
-    ) {
-        TopHeader(
-            totalBillAmount = calculateTotalAmount(
+    BillForm(
+        totalBill = totalBill.value,
+        validCurrency = validCurrency,
+        people = people.value,
+        sliderPosition = sliderPosition.value,
+        tipAmount = calculateTotalTip(totalBill.value, (sliderPosition.value * 100).roundToInt()),
+        totalBillAmount = calculateTotalAmount(
+            totalBill = totalBill.value,
+            tipAmount = calculateTotalTip(totalBill.value, (sliderPosition.value * 100).roundToInt())
+        ),
+        totalPerPerson = calculateTotalPerPerson(
+            calculateTotalAmount(
                 totalBill = totalBill.value,
                 tipAmount = calculateTotalTip(totalBill.value, (sliderPosition.value * 100).roundToInt())
             ),
-            totalPerPerson = calculateTotalPerPerson(
-                calculateTotalAmount(
-                    totalBill = totalBill.value,
-                    tipAmount = calculateTotalTip(totalBill.value, (sliderPosition.value * 100).roundToInt())
-                ),
-                people.value
-            )
+            people.value
+        ),
+        onClickAdd = {
+            if (people.value < 100) people.value++
+        },
+        onClickRemove = {
+            if (people.value > 1) people.value--
+        },
+        onValueChangedSlider = {
+            sliderPosition.value = it
+        },
+        onValueChangedInput = {
+            totalBill.value = it
+        }
+    )
+}
+
+//Form Definition
+@Composable
+@ExperimentalComposeUiApi
+fun BillForm(
+    modifier: Modifier = Modifier,
+    totalBill: String = "",
+    validCurrency: Boolean = false,
+    people: Int = 0,
+    sliderPosition: Float = 0f,
+    tipAmount: Double = 0.0,
+    totalBillAmount: Double = 0.0,
+    totalPerPerson: Double = 0.0,
+    onClickAdd: () -> Unit = {},
+    onClickRemove: () -> Unit = {},
+    onValueChangedSlider: (Float) -> Unit = {},
+    onValueChangedInput: (String) -> Unit = {}
+) {
+    Column(
+        modifier = modifier.padding(horizontal = 10.dp, vertical = 20.dp)
+    ) {
+        TopHeader(
+            totalBillAmount = totalBillAmount,
+            totalPerPerson = totalPerPerson
         )
         Spacer(modifier = Modifier.height(10.dp))
         FormInputs(
             totalBill = totalBill,
             validCurrency = validCurrency,
-            people = people.value,
-            sliderPosition = sliderPosition.value,
-            tipAmount = calculateTotalTip(totalBill.value, (sliderPosition.value * 100).roundToInt()),
-            onClickRemove = {
-                if (people.value > 1) people.value--
-            },
-            onClickAdd = {
-                if (people.value < 100) people.value++
-            },
-            onValueChangedSlider = {
-                sliderPosition.value = it
-            }
+            people = people,
+            sliderPosition = sliderPosition,
+            tipAmount = tipAmount,
+            onClickRemove = onClickRemove,
+            onClickAdd = onClickAdd,
+            onValueChangedSlider = onValueChangedSlider,
+            onValueChangedInput = onValueChangedInput
         )
     }
 }
 
+//Top Header containing Total Bill and Total Per Person
 @Composable
 fun TopHeader(totalBillAmount: Double = 0.0, totalPerPerson: Double = 0.0) {
     Surface(
@@ -154,18 +199,20 @@ fun TopHeader(totalBillAmount: Double = 0.0, totalPerPerson: Double = 0.0) {
     }
 }
 
+//Tip Calculation main inputs
 @ExperimentalComposeUiApi
 @Composable
 fun FormInputs(
     modifier: Modifier = Modifier,
-    totalBill: MutableState<String>,
+    totalBill: String,
     validCurrency: Boolean,
     people: Int,
     sliderPosition: Float,
     tipAmount: Double,
     onClickAdd: () -> Unit = {},
     onClickRemove: () -> Unit = {},
-    onValueChangedSlider: (Float) -> Unit = {}
+    onValueChangedSlider: (Float) -> Unit = {},
+    onValueChangedInput: (String) -> Unit = {}
 ) {
     Surface(
         modifier = modifier
@@ -180,12 +227,13 @@ fun FormInputs(
             verticalArrangement = Arrangement.Top,
         ) Form@{
             InputCurrencyField(
-                valueState = totalBill,
+                value = totalBill,
                 labelId = "Enter Bill",
                 keyboardActions = KeyboardActions {
                     if (!validCurrency) return@KeyboardActions
                     keyboardController?.hide()
-                }
+                },
+                onValueChange = onValueChangedInput
             )
             if (validCurrency) {
                 Row(
@@ -249,16 +297,17 @@ fun FormInputs(
                 }
                 return@Form
             }
-            Box() {}
+            Box(modifier = Modifier)
         }
     }
 }
 
+//Design Preview
 @Preview(showBackground = true)
 @ExperimentalComposeUiApi
 @Composable
 fun DefaultPreview() {
     App {
-        BillForm()
+        MainContent()
     }
 }
